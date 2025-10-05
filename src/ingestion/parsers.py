@@ -16,9 +16,8 @@ def simple_chunk(text: str, chunk_size: int = 512, overlap: int = 50) -> List[st
 
 def parse_documents(files: Iterable[tuple[str, str]]) -> Iterable[dict]:
     for filename, content in files:
-        for seq, chunk in enumerate(simple_chunk(content)):
+        for chunk in simple_chunk(content):
             yield {
-                "chunk_id": f"{filename}-{seq}",
                 "text": chunk,
-                "source_file": filename,
+                "source_path": filename,
             }

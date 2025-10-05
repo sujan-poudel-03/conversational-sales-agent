@@ -1,0 +1,2 @@
+Our sales agent supports multi-tenant deployments. Each branch can upload knowledge base documents so agents answer with branch specific information.
+We also assist potential customers by capturing their interest, budget, and contact details while keeping the conversation natural.

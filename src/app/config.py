@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from functools import lru_cache
 from typing import List
@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     pinecone_api_key: str = Field(default="")
     pinecone_environment: str = Field(default="")
     pinecone_index: str = Field(default="")
+    pinecone_dimension: int = Field(default=1536)
+    pinecone_metric: str = Field(default="cosine")
+    pinecone_cloud: str = Field(default="")
+    pinecone_region: str = Field(default="")
+    pinecone_pod_type: str = Field(default="")
 
     # MongoDB
     mongo_uri: str = Field(default="mongodb://localhost:27017")

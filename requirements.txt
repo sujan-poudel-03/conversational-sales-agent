@@ -1,4 +1,4 @@
-﻿fastapi
+fastapi
 uvicorn
 pydantic
 pydantic-settings
@@ -7,5 +7,5 @@ pinecone
 pymongo
 google-api-python-client
 google-auth
-google-generativeai
+google-genai
 pytest

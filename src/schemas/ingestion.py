@@ -2,21 +2,25 @@
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.schemas.context import TenantContext
 
 
-class DocumentChunk(BaseModel):
-    chunk_id: str
-    text: str
-    source_file: Optional[str]
-    sequence: int
+class IngestionDocument(BaseModel):
+    text: Optional[str] = Field(default=None, description="Inline content to ingest.")
+    source_path: Optional[str] = Field(default=None, description="Relative or absolute path to a file on disk.")
+
+    @model_validator(mode='after')
+    def _validate_source(cls, values: 'IngestionDocument') -> 'IngestionDocument':
+        if not values.text and not values.source_path:
+            raise ValueError('Either text or source_path must be provided for ingestion.')
+        return values
 
 
 class IngestionRequest(BaseModel):
     context: TenantContext
-    documents: List[DocumentChunk] = Field(default_factory=list)
+    documents: List[IngestionDocument] = Field(default_factory=list)
 
 
 class IngestionStatus(BaseModel):

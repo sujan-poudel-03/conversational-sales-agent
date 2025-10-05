@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from functools import lru_cache
 
@@ -19,12 +19,14 @@ from src.services.rag import RagService
 
 
 @lru_cache(maxsize=1)
-def get_mongo_factory(settings: Settings = Depends(get_settings)) -> MongoClientFactory:
+def get_mongo_factory() -> MongoClientFactory:
+    settings = get_settings()
     return MongoClientFactory(settings.mongo_uri, settings.mongo_database)
 
 
 @lru_cache(maxsize=1)
-def get_pinecone_factory(settings: Settings = Depends(get_settings)) -> PineconeClientFactory:
+def get_pinecone_factory() -> PineconeClientFactory:
+    settings = get_settings()
     return PineconeClientFactory(
         api_key=settings.pinecone_api_key,
         environment=settings.pinecone_environment,
@@ -33,12 +35,14 @@ def get_pinecone_factory(settings: Settings = Depends(get_settings)) -> Pinecone
 
 
 @lru_cache(maxsize=1)
-def get_email_client(settings: Settings = Depends(get_settings)) -> EmailClient:
+def get_email_client() -> EmailClient:
+    settings = get_settings()
     return EmailClient(api_key=settings.email_api_key, sender_domain=settings.email_sender_domain)
 
 
 @lru_cache(maxsize=1)
-def get_calendar_client(settings: Settings = Depends(get_settings)) -> CalendarClient:
+def get_calendar_client() -> CalendarClient:
+    settings = get_settings()
     return CalendarClient(
         service_account_file=settings.google_service_account_file,
         default_timezone=settings.calendar_timezone,
@@ -46,7 +50,8 @@ def get_calendar_client(settings: Settings = Depends(get_settings)) -> CalendarC
 
 
 @lru_cache(maxsize=1)
-def get_embedder(settings: Settings = Depends(get_settings)):
+def get_embedder():
+    settings = get_settings()
     if settings.gemini_api_key:
         try:
             from src.services.embeddings import EmbeddingService
@@ -77,8 +82,12 @@ def get_rag_service(
 
 def get_ingestion_pipeline(
     pinecone_factory: PineconeClientFactory = Depends(get_pinecone_factory),
+    embedder = Depends(get_embedder),
 ) -> IngestionPipeline:
-    return IngestionPipeline(pinecone_index=pinecone_factory.get_index())
+    return IngestionPipeline(
+        pinecone_index=pinecone_factory.get_index(),
+        embedder=embedder,
+    )
 
 
 def get_calendar_service(
