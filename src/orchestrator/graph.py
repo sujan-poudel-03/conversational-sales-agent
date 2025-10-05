@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Callable, Dict
 
@@ -71,12 +71,25 @@ class AgentOrchestrator:
 
     def _lead_node(self, state: ConversationState) -> ConversationState:
         updated = state.copy()
-        lead_data = self._lead_service.capture_lead_step(
+        capture_result = self._lead_service.capture_lead_step(
             context=updated.context,
             user_query=updated.user_query,
             existing_lead=updated.lead_data,
         )
-        updated.lead_data.update(lead_data)
+        updated.lead_data.update(capture_result.updates)
+
+        if capture_result.prompt:
+            updated.history.append({"role": "assistant", "content": capture_result.prompt})
+        elif self._lead_service.is_complete(updated.lead_data):
+            confirmation = self._lead_service.build_confirmation_message(updated.lead_data)
+            updated.history.append({"role": "assistant", "content": confirmation})
+        else:
+            updated.history.append(
+                {
+                    "role": "assistant",
+                    "content": "Thanks for the details - feel free to share more so I can complete your request.",
+                }
+            )
         return updated
 
     def _lead_saver_node(self, state: ConversationState) -> ConversationState:
@@ -107,3 +120,4 @@ class AgentOrchestrator:
 
     def lead_is_complete(self, lead_data: Dict[str, str]) -> bool:
         return self._lead_service.is_complete(lead_data)
+

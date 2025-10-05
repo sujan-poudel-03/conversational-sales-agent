@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from src.ingestion.pipeline import IngestionPipeline
 from src.services.embeddings_fallback import DeterministicEmbedding
@@ -27,10 +27,9 @@ def test_pipeline_reads_source_file_and_upserts_vectors():
     assert index.calls, "expected vectors to be upserted"
     call = index.calls[0]
     assert call["namespace"] == "org_1::branch_1"
-    vector_meta = call["vectors"][0]
-    chunk_id, vector, metadata = vector_meta
-    assert chunk_id, "chunk_id should be generated internally"
-    assert isinstance(vector, list) and vector, "vector should be computed"
-    assert metadata["org_id"] == "org_1"
-    assert metadata["branch_id"] == "branch_1"
-    assert metadata["source_path"].endswith("requirements.txt")
+    vector_item = call["vectors"][0]
+    assert isinstance(vector_item, dict)
+    assert vector_item["metadata"]["org_id"] == "org_1"
+    assert vector_item["metadata"]["branch_id"] == "branch_1"
+    assert vector_item["metadata"]["source_path"].endswith("requirements.txt")
+    assert vector_item["values"], "vector should contain embedding values"

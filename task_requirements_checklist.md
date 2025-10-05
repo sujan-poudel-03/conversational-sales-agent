@@ -9,9 +9,12 @@
 
 ## 2. Conversational Lead Capture
 - [ ] Detect purchase intent ahead of KB answer (confirm runtime behaviour and tests)
-- [ ] Capture structured lead details conversationally
-- [ ] Persist captured leads to MongoDB
-- [ ] Add tests covering lead capture happy-path and edge cases
+- [x] Capture structured lead details conversationally
+  - `LeadService.capture_lead_step` now parses email, phone, budget, product interest, and reasons with prompts.
+- [x] Persist captured leads to MongoDB
+  - Lead payload normalised (lists, metadata) before insert + thank-you email.
+- [x] Add tests covering lead capture happy-path and edge cases
+  - See `tests/test_lead_capture.py` for progression + persistence assertions.
 
 ## 3. Appointment Management
 - [ ] Support booking/reschedule/cancel flows end-to-end
@@ -22,7 +25,8 @@
 ## 4. Architecture & Orchestration (LangGraph Flow)
 - [x] Structure conversation flow scaffold (intent classifier + orchestrator skeleton)
   - Rule-based classifier and orchestrator wiring exist; needs validation with new integrations.
-- [ ] Fully implement lead capture branch within graph
+- [x] Fully implement lead capture branch within graph
+  - Assistant now responds with follow-up prompts and summaries; completed leads persisted automatically.
 - [ ] Integrate Pinecone RAG response node with updated embeddings
 - [ ] Implement booking workflow nodes (Calendar + Email)
 - [ ] Create end-to-end tests covering main intents
