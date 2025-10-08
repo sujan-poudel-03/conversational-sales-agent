@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, is_dataclass
 from typing import Callable, Dict
 
 from langgraph.graph import END, StateGraph
@@ -25,7 +26,7 @@ class AgentOrchestrator:
         self._lead_service = lead_service
         self._calendar_service = calendar_service
         self._intent_classifier = intent_classifier
-        self._graph = self._build_graph()
+        self._graph = self._build_graph().compile()
 
     def _build_graph(self) -> StateGraph[ConversationState]:
         graph: StateGraph[ConversationState] = StateGraph(ConversationState)
@@ -116,7 +117,23 @@ class AgentOrchestrator:
         return state.intent
 
     def run(self, state: ConversationState) -> ConversationState:
-        return self._graph.invoke(state)
+        payload = asdict(state) if is_dataclass(state) else state
+        result = self._graph.invoke(payload)
+        if isinstance(result, ConversationState):
+            return result
+        if isinstance(result, dict):
+            intent_value = result.get("intent", Intent.RAG_INFO)
+            if not isinstance(intent_value, Intent):
+                intent_value = Intent(intent_value)
+            return ConversationState(
+                intent=intent_value,
+                user_query=result.get("user_query", ""),
+                context=dict(result.get("context", {})),
+                lead_data=dict(result.get("lead_data", {})),
+                appointment_id=result.get("appointment_id"),
+                history=list(result.get("history", [])),
+            )
+        raise TypeError(f"Unsupported state result from graph: {type(result)!r}")
 
     def lead_is_complete(self, lead_data: Dict[str, str]) -> bool:
         return self._lead_service.is_complete(lead_data)
