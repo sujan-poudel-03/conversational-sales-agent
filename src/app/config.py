@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         default="text-embedding-004",
         validation_alias=AliasChoices("GEMINI_EMBED_MODEL", "GEMINI_EMBEDDING_MODEL"),
     )
+    gemini_intent_model: str = Field(
+        default="gemini-1.5-pro",
+        validation_alias=AliasChoices("GEMINI_INTENT_MODEL"),
+    )
     allowed_origins: List[str] = Field(
         default_factory=list,
         validation_alias="ALLOWED_ORIGINS",

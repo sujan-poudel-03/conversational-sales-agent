@@ -12,10 +12,10 @@ class IngestionDocument(BaseModel):
     source_path: Optional[str] = Field(default=None, description="Relative or absolute path to a file on disk.")
 
     @model_validator(mode='after')
-    def _validate_source(cls, values: 'IngestionDocument') -> 'IngestionDocument':
-        if not values.text and not values.source_path:
+    def _validate_source(cls, document: 'IngestionDocument') -> 'IngestionDocument':
+        if not document.text and not document.source_path:
             raise ValueError('Either text or source_path must be provided for ingestion.')
-        return values
+        return document
 
 
 class IngestionRequest(BaseModel):

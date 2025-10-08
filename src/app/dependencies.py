@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Callable, Optional
 
 from fastapi import Depends
 
@@ -96,15 +97,32 @@ def get_calendar_service(
     return CalendarService(calendar_client=calendar_client)
 
 
+def get_intent_classifier_dependency(
+    settings: Settings = Depends(get_settings),
+) -> Callable:
+    llm_classifier: Optional[Callable] = None
+    if settings.gemini_api_key:
+        try:
+            from src.services.intent import IntentClassifier
+
+            llm = IntentClassifier(settings.gemini_intent_model, settings.gemini_api_key)
+            llm_classifier = llm.classify
+        except Exception:
+            llm_classifier = None
+
+    classifier = RuleBasedIntentClassifier(llm_classifier=llm_classifier)
+    return classifier.classify
+
+
 def get_orchestrator(
     rag_service: RagService = Depends(get_rag_service),
     lead_service: LeadService = Depends(get_lead_service),
     calendar_service: CalendarService = Depends(get_calendar_service),
+    intent_classifier: Callable = Depends(get_intent_classifier_dependency),
 ) -> AgentOrchestrator:
-    classifier = RuleBasedIntentClassifier()
     return AgentOrchestrator(
         rag_service=rag_service,
         lead_service=lead_service,
         calendar_service=calendar_service,
-        intent_classifier=classifier.classify,
+        intent_classifier=intent_classifier,
     )
