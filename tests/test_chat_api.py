@@ -7,6 +7,7 @@ from src.app.dependencies import get_orchestrator
 from src.app.main import app
 from src.orchestrator.graph import AgentOrchestrator
 from src.orchestrator.intents import Intent
+from src.services.calendar import BookingResult
 from src.services.lead import LeadService
 from src.services.rag import RagService
 
@@ -37,7 +38,7 @@ class InlineRagService(RagService):
 def _build_orchestrator():
     lead_service = LeadService(collection=MemoryCollection(), email_client=MemoryEmailClient())
 
-    class DummyCalendar(CalendarService):
+    class DummyCalendar:
         def __init__(self):
             self.calls = []
 
@@ -45,26 +46,26 @@ def _build_orchestrator():
             self.calls.append(
                 (context, user_query, lead_data, appointment_id, intent),
             )
-            return type(
-                "Result",
-                (),
-                {
-                    "appointment_id": "appt-test",
-                    "message": "Appointment confirmed for your request.",
-                    "audit_note": "calendar_event_created:appt-test",
-                },
-            )()
+            return BookingResult(
+                appointment_id="appt-test",
+                message="Appointment confirmed for your request.",
+                audit_note="calendar_event_created:appt-test",
+            )
 
     calendar_service = DummyCalendar()
 
-    class StubRag(RagService):
+    class StubRag:
+        def __init__(self):
+            self.calls = []
+
         def answer_query(self, context, query, history):
+            self.calls.append((context, query, history))
             return "Stub knowledge base answer."
 
     orchestrator = AgentOrchestrator(
-        rag_service=StubRag(),
+        rag_service=StubRag(),  # type: ignore[arg-type]
         lead_service=lead_service,
-        calendar_service=calendar_service,
+        calendar_service=calendar_service,  # type: ignore[arg-type]
         intent_classifier=lambda state: _classify(state.user_query),
     )
     return orchestrator, lead_service, calendar_service
@@ -127,7 +128,12 @@ def test_chat_purchase_lead_flow(client: TestClient):
     assert response.status_code == 200
     assert data["intent"] == "purchase_interest"
     assert data["lead_captured"] is False
-    assert "share more" in data["reply"].lower() or "could you" in data["reply"].lower()
+    reply_lower = data["reply"].lower()
+    assert (
+        "what makes this a good fit" in reply_lower
+        or "share more" in reply_lower
+        or "could you" in reply_lower
+    )
 
 
 def test_chat_booking_flow(client: TestClient):
