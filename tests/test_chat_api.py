@@ -109,7 +109,7 @@ def test_chat_rag_info_flow(client: TestClient, tenant_context: dict[str, str]):
 def test_chat_purchase_lead_flow(client: TestClient, tenant_context: dict[str, str]):
     payload = _base_payload(
         tenant_context,
-        "I'm interested in solar panels for my home. Email me at jordan@example.com.",
+        "I'm interested in solar panels for my home. Email me at poudelsujan03@gmail.com.",
     )
     response = client.post("/api/v1/chat", json=payload)
     assert response.status_code == 200, response.text
@@ -125,7 +125,7 @@ def test_chat_booking_flow(client: TestClient, tenant_context: dict[str, str]):
         tenant_context,
         (
             "Please book an appointment for tomorrow. My name is Alex Rivera, "
-            "email alex@example.com, phone +1 555 333 4444, interested in solar panels because of high bills."
+            "email poudelsujan03@gmail.com, phone +1 555 333 4444, interested in solar panels because of high bills."
         ),
     )
     response = client.post("/api/v1/chat", json=payload)
