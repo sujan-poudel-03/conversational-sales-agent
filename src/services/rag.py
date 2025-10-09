@@ -18,10 +18,12 @@ class RagService:
         self._embedder = embedder
 
     def answer_query(self, context: Dict[str, str], query: str, history: List[Dict[str, str]]) -> str:
+        org_id = context.get("org_id", "default_org")
+        branch_id = context.get("branch_id", "default_branch")
         filter_payload = {
             "$and": [
-                {"org_id": context["org_id"]},
-                {"branch_id": context["branch_id"]},
+                {"org_id": org_id},
+                {"branch_id": branch_id},
             ]
         }
         vector = self._embedder.embed(query)
@@ -30,6 +32,7 @@ class RagService:
             top_k=5,
             include_metadata=True,
             filter=filter_payload,
+            namespace=f"{org_id}::{branch_id}",
         )
         matches = result.get("matches", [])
         context_snippets = [match["metadata"].get("text", "") for match in matches if match.get("metadata")]

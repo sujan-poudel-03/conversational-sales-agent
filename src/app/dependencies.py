@@ -36,7 +36,7 @@ def get_pinecone_factory() -> PineconeClientFactory:
 @lru_cache(maxsize=1)
 def get_email_client() -> EmailClient:
     settings = get_settings()
-    return EmailClient(api_key=settings.email_api_key, sender_domain=settings.email_sender_domain)
+    return EmailClient(api_key=settings.email_api_key, sender_email=settings.email_sender_email)
 
 
 @lru_cache(maxsize=1)

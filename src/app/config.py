@@ -34,9 +34,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GOOGLE_SA_FILE", "GOOGLE_SERVICE_ACCOUNT_FILE"),
     )
     calendar_timezone: str = Field(default="UTC")
+    calendar_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("TEST_CALENDAR_ID", "CALENDAR_ID"),
+    )
 
     # Email
-    email_sender_domain: str = Field(default="")
+    email_sender_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("EMAIL_SENDER_EMAIL", "EMAIL_SENDER_DOMAIN"),
+    )
     email_api_key: str = Field(default="")
 
     # LangGraph / LLM
