@@ -18,24 +18,14 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - env guard
     pytest.skip("langgraph is required for this integration test", allow_module_level=True)  # type: ignore[arg-type]
 
-import pinecone  # type: ignore
-
-from pinecone.exceptions import NotFoundException  # type: ignore[attr-defined]
-
 from src.app.config import get_settings
 from src.app.main import app
-from src.services.embeddings_fallback import DeterministicEmbedding
 
-
-try:  # Pinecone >=3 provides the Pinecone client class.
-    from pinecone import Pinecone as PineconeClient  # type: ignore
-    try:
-        from pinecone import ServerlessSpec  # type: ignore
-    except ImportError:  # pragma: no cover - optional helper
-        ServerlessSpec = None  # type: ignore
-except ImportError:  # pragma: no cover - older SDK fallback
-    PineconeClient = None  # type: ignore
-    ServerlessSpec = None  # type: ignore
+try:
+    from pinecone import Pinecone, ServerlessSpec  # type: ignore
+    from pinecone.exceptions import NotFoundException  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - dependency guard
+    pytest.skip("Pinecone >= 3.x SDK is required for this integration test", allow_module_level=True)  # type: ignore[arg-type]
 
 
 def _namespace_vector_count(index, namespace: str) -> int:
@@ -89,7 +79,7 @@ async def _call_api(method: str, path: str, payload: dict) -> tuple[int, dict]:
     return status, data
 
 
-def _wait_for_index_new(client: PineconeClient, index_name: str, timeout: float = 180.0, interval: float = 5.0):
+def _wait_for_index(client: Pinecone, index_name: str, timeout: float = 180.0, interval: float = 5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -103,28 +93,16 @@ def _wait_for_index_new(client: PineconeClient, index_name: str, timeout: float 
     raise RuntimeError(f"Timed out waiting for Pinecone index '{index_name}' to become ready")
 
 
-def _wait_for_index_legacy(index_name: str, timeout: float = 180.0, interval: float = 5.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            index = pinecone.Index(index_name)
-            index.describe_index_stats()
-            return index
-        except Exception:  # pragma: no cover - transient or not-ready states
-            time.sleep(interval)
-    raise RuntimeError(f"Timed out waiting for Pinecone index '{index_name}' to become ready")
-
-
 def _expected_dimension(settings) -> int:
-    if settings.gemini_api_key:
-        return settings.pinecone_dimension
-    return len(DeterministicEmbedding().embed("probe-dimension"))
+    if not settings.pinecone_dimension:
+        raise RuntimeError("pinecone_dimension must be configured")
+    return settings.pinecone_dimension
 
 
 @pytest.fixture(scope="module")
 def pinecone_index():
     settings = get_settings()
-    required_values = [settings.pinecone_api_key, settings.pinecone_index]
+    required_values = [settings.pinecone_api_key, settings.pinecone_index, settings.gemini_api_key]
     if not all(required_values):
         pytest.skip("Pinecone credentials are not configured", allow_module_level=True)  # type: ignore[arg-type]
 
@@ -133,49 +111,11 @@ def pinecone_index():
     metric = settings.pinecone_metric
     cloud = settings.pinecone_cloud
     region = settings.pinecone_region
-    pod_type = settings.pinecone_pod_type or "p1.x1"
+    client = Pinecone(api_key=settings.pinecone_api_key)
 
-    if PineconeClient is not None:
-        client = PineconeClient(api_key=settings.pinecone_api_key)
-        index_names = {item.name for item in client.list_indexes().indexes}
-        if index_name in index_names:
-            description = client.describe_index(index_name)
-            actual_dimension = getattr(description, "dimension", None)
-            if actual_dimension is not None and actual_dimension != dimension:
-                pytest.skip(
-                    f"Pinecone index '{index_name}' dimension {actual_dimension} does not match expected {dimension}. "
-                    "Drop or update the index to continue.",
-                    allow_module_level=True,
-                )  # type: ignore[arg-type]
-        else:
-            if ServerlessSpec is None:
-                pytest.skip(
-                    "Pinecone SDK does not expose ServerlessSpec; create the index manually",
-                    allow_module_level=True,
-                )  # type: ignore[arg-type]
-            if not cloud or not region:
-                pytest.skip(
-                    "Set pinecone_cloud and pinecone_region to auto-create the index",
-                    allow_module_level=True,
-                )  # type: ignore[arg-type]
-            client.create_index(
-                name=index_name,
-                dimension=dimension,
-                metric=metric,
-                spec=ServerlessSpec(cloud=cloud, region=region),
-            )
-        return _wait_for_index_new(client, index_name)
-
-    if not getattr(settings, "pinecone_environment", None):  # pragma: no cover - legacy SDK requires env
-        pytest.skip(
-            "Pinecone environment is required for legacy pinecone client",
-            allow_module_level=True,
-        )  # type: ignore[arg-type]
-
-    pinecone.init(api_key=settings.pinecone_api_key, environment=settings.pinecone_environment)  # type: ignore[attr-defined]
-    existing = set(pinecone.list_indexes())  # type: ignore[attr-defined]
-    if index_name in existing:
-        description = pinecone.describe_index(index_name)  # type: ignore[attr-defined]
+    index_names = {item.name for item in client.list_indexes().indexes}
+    if index_name in index_names:
+        description = client.describe_index(index_name)
         actual_dimension = getattr(description, "dimension", None)
         if isinstance(actual_dimension, int) and actual_dimension != dimension:
             pytest.skip(
@@ -183,14 +123,26 @@ def pinecone_index():
                 "Drop or update the index to continue.",
                 allow_module_level=True,
             )  # type: ignore[arg-type]
-    else:
-        pinecone.create_index(  # type: ignore[attr-defined]
-            name=index_name,
-            dimension=dimension,
-            metric=metric,
-            pod_type=pod_type,
-        )
-    return _wait_for_index_legacy(index_name)
+        return _wait_for_index(client, index_name)
+
+    if ServerlessSpec is None:
+        pytest.skip(
+            "Current Pinecone SDK does not expose ServerlessSpec; create the index manually",
+            allow_module_level=True,
+        )  # type: ignore[arg-type]
+    if not cloud or not region:
+        pytest.skip(
+            "Set pinecone_cloud and pinecone_region to auto-create the index",
+            allow_module_level=True,
+        )  # type: ignore[arg-type]
+
+    client.create_index(
+        name=index_name,
+        dimension=dimension,
+        metric=metric,
+        spec=ServerlessSpec(cloud=cloud, region=region),
+    )
+    return _wait_for_index(client, index_name)
 
 
 def _safe_delete(index, namespace: str) -> None:

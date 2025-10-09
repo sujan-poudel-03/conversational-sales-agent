@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import Iterable, List, Protocol, Sequence, Tuple
+from typing import Iterable, List, Protocol, Sequence
 
 from src.adapters.pinecone_client import PineconeIndexProtocol
 from src.ingestion.parsers import simple_chunk
@@ -18,9 +18,6 @@ class EmbeddingProvider(Protocol):
 
 
 VectorDict = dict
-VectorLegacy = Tuple[str, List[float], dict]
-
-
 class IngestionPipeline:
     """Processes documents into Pinecone with tenant metadata."""
 
@@ -42,7 +39,6 @@ class IngestionPipeline:
         processed = 0
         failed = 0
         vectors_modern: List[VectorDict] = []
-        vectors_legacy: List[VectorLegacy] = []
 
         for document in documents:
             try:
@@ -68,7 +64,6 @@ class IngestionPipeline:
                             "metadata": metadata,
                         }
                     )
-                    vectors_legacy.append((chunk["chunk_id"], values, metadata))
                     processed += 1
             except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Failed to ingest document", extra={"document": document})
@@ -79,7 +74,7 @@ class IngestionPipeline:
 
         namespace = self._build_namespace(context)
         baseline_count = self._namespace_vector_count(namespace)
-        self._upsert(namespace, vectors_modern, vectors_legacy)
+        self._upsert(namespace, vectors_modern)
         self._await_vector_count(namespace, baseline_count + len(vectors_modern))
         return {"processed": processed, "failed": failed}
 
@@ -116,18 +111,9 @@ class IngestionPipeline:
     def _upsert(
         self,
         namespace: str,
-        modern_vectors: Sequence[VectorDict],
-        legacy_vectors: Sequence[VectorLegacy],
+        vectors: Sequence[VectorDict],
     ) -> None:
-        try:
-            self._index.upsert(vectors=list(modern_vectors), namespace=namespace)
-            return
-        except TypeError:
-            pass
-        except Exception as exc:
-            if not self._should_retry_with_legacy_format(exc):
-                raise
-        self._index.upsert(vectors=list(legacy_vectors), namespace=namespace)
+        self._index.upsert(vectors=list(vectors), namespace=namespace)
 
     def _await_vector_count(self, namespace: str, target_count: int) -> None:
         describe = getattr(self._index, "describe_index_stats", None)
@@ -157,16 +143,6 @@ class IngestionPipeline:
             return 0
         namespaces = stats.get("namespaces", {}) if isinstance(stats, dict) else {}
         return int(namespaces.get(namespace, {}).get("vector_count", 0))
-
-    @staticmethod
-    def _should_retry_with_legacy_format(exc: Exception) -> bool:
-        message = str(exc)
-        fallback_markers = (
-            "Vectors item must be a dict",
-            "Expected List[Tuple",
-            "Vectors should contain",
-        )
-        return any(marker in message for marker in fallback_markers)
 
     @staticmethod
     def _build_namespace(context: dict) -> str:

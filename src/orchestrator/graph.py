@@ -45,13 +45,20 @@ class AgentOrchestrator:
             {
                 Intent.RAG_INFO: "rag_chain",
                 Intent.PURCHASE_INTEREST: "lead_capture",
-                Intent.BOOKING: "booking",
+                Intent.BOOKING: "lead_capture",
                 Intent.CANCEL_BOOKING: "booking",
             },
         )
 
         graph.add_edge("lead_capture", "lead_saver")
-        graph.add_edge("lead_saver", "booking")
+        graph.add_conditional_edges(
+            "lead_saver",
+            self._post_lead_router,
+            {
+                True: "booking",
+                False: END,
+            },
+        )
         graph.add_edge("rag_chain", END)
         graph.add_edge("booking", END)
 
@@ -100,6 +107,11 @@ class AgentOrchestrator:
             updated.history.append({"role": "system", "content": f"Lead saved: {lead_record['id']}"})
         return updated
 
+    def _post_lead_router(self, state: ConversationState) -> bool:
+        if state.intent == Intent.BOOKING and self._lead_service.is_complete(state.lead_data):
+            return True
+        return False
+
     def _booking_node(self, state: ConversationState) -> ConversationState:
         updated = state.copy()
         booking_result = self._calendar_service.handle_booking(
@@ -110,7 +122,9 @@ class AgentOrchestrator:
             intent=updated.intent,
         )
         updated.appointment_id = booking_result.appointment_id
-        updated.history.append({"role": "system", "content": booking_result.message})
+        updated.history.append({"role": "assistant", "content": booking_result.message})
+        if booking_result.audit_note:
+            updated.history.append({"role": "system", "content": booking_result.audit_note})
         return updated
 
     def _intent_router(self, state: ConversationState) -> Intent:

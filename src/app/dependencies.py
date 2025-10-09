@@ -12,7 +12,7 @@ from src.adapters.pinecone_client import PineconeClientFactory
 from src.ingestion.pipeline import IngestionPipeline
 from src.orchestrator.graph import AgentOrchestrator
 from src.services.calendar import CalendarService
-from src.services.embeddings_fallback import DeterministicEmbedding
+from src.services.embeddings import EmbeddingService
 from src.services.intent_rules import RuleBasedIntentClassifier
 from src.services.lead import LeadService
 from src.services.rag import RagService
@@ -29,7 +29,6 @@ def get_pinecone_factory() -> PineconeClientFactory:
     settings = get_settings()
     return PineconeClientFactory(
         api_key=settings.pinecone_api_key,
-        environment=settings.pinecone_environment,
         index_name=settings.pinecone_index,
     )
 
@@ -52,14 +51,9 @@ def get_calendar_client() -> CalendarClient:
 @lru_cache(maxsize=1)
 def get_embedder():
     settings = get_settings()
-    if settings.gemini_api_key:
-        try:
-            from src.services.embeddings import EmbeddingService
-
-            return EmbeddingService(settings.gemini_embedding_model, settings.gemini_api_key)
-        except RuntimeError:
-            pass
-    return DeterministicEmbedding()
+    if not settings.gemini_api_key:
+        raise RuntimeError("Gemini API key must be configured for embeddings")
+    return EmbeddingService(settings.gemini_embedding_model, settings.gemini_api_key)
 
 
 def get_lead_service(
@@ -92,8 +86,9 @@ def get_ingestion_pipeline(
 
 def get_calendar_service(
     calendar_client: CalendarClient = Depends(get_calendar_client),
+    email_client: EmailClient = Depends(get_email_client),
 ) -> CalendarService:
-    return CalendarService(calendar_client=calendar_client)
+    return CalendarService(calendar_client=calendar_client, email_client=email_client)
 
 
 def get_orchestrator(

@@ -19,7 +19,9 @@ def _extract_user_reply(history: list[dict[str, str]]) -> str:
         content = message.get("content", "")
         if not content:
             continue
-        if message.get("role") == "system" and content.startswith("Lead saved"):
+        if message.get("role") == "system" and (
+            content.startswith("Lead saved") or content.startswith("calendar_event_")
+        ):
             continue
         return content
     return ""
