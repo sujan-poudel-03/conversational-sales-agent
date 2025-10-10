@@ -13,7 +13,7 @@ from src.ingestion.pipeline import IngestionPipeline
 from src.orchestrator.graph import AgentOrchestrator
 from src.services.calendar import CalendarService
 from src.services.embeddings import EmbeddingService
-from src.services.intent_rules import RuleBasedIntentClassifier
+from src.services.intent_rules import SemanticIntentClassifier
 from src.services.lead import LeadService
 from src.services.rag import RagService
 
@@ -96,7 +96,7 @@ def get_orchestrator(
     lead_service: LeadService = Depends(get_lead_service),
     calendar_service: CalendarService = Depends(get_calendar_service),
 ) -> AgentOrchestrator:
-    classifier = RuleBasedIntentClassifier()
+    classifier = SemanticIntentClassifier()
     return AgentOrchestrator(
         rag_service=rag_service,
         lead_service=lead_service,
