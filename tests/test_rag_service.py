@@ -29,6 +29,17 @@ class StubPineconeIndex:
         return {"matches": matches[:top_k]}
 
 
+class StubResponseGenerator:
+    def __init__(self) -> None:
+        self.prompts: List[str] = []
+
+    def generate(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        if "Solar incentives overview." in prompt:
+            return "Solar incentives overview."
+        return "I could not find information for that request."
+
+
 def test_rag_service_filters_by_tenant():
     documents = [
         {"metadata": {"org_id": "org-a", "branch_id": "branch-1", "text": "Solar incentives overview."}},
@@ -36,7 +47,8 @@ def test_rag_service_filters_by_tenant():
     ]
     embedder = StubEmbedder()
     index = StubPineconeIndex(documents)
-    rag = RagService(pinecone_index=index, embedder=embedder)
+    generator = StubResponseGenerator()
+    rag = RagService(pinecone_index=index, embedder=embedder, response_generator=generator)
 
     response = rag.answer_query(
         context={"org_id": "org-a", "branch_id": "branch-1"},
@@ -45,5 +57,6 @@ def test_rag_service_filters_by_tenant():
     )
 
     assert embedder.captured == ["Tell me about incentives"]
+    assert generator.prompts  # ensure generator invoked
     assert "Solar incentives overview." in response
     assert "Other branch data." not in response

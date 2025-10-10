@@ -27,7 +27,7 @@ def _default_context() -> dict[str, str]:
 
 
 def _call_api(method: str, path: str, payload: dict) -> tuple[int, dict]:
-    base_url = "http://localhost:8009"
+    base_url = st.session_state.get("api_base_url", "http://localhost:8000")
     url = base_url.rstrip("/") + path
     response = requests.request(method, url, json=payload)
     data = {}

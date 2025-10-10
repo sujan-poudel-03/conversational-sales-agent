@@ -16,6 +16,7 @@ from src.services.embeddings import EmbeddingService
 from src.services.intent import IntentClassifier
 # from src.services.intent_rules import SemanticIntentClassifier
 from src.services.lead import LeadService
+from src.services.nlg import ResponseGenerator as LLMResponseGenerator
 from src.services.rag import RagService
 
 
@@ -57,6 +58,14 @@ def get_embedder():
     return EmbeddingService(settings.gemini_embedding_model, settings.gemini_api_key)
 
 
+@lru_cache(maxsize=1)
+def get_response_generator() -> LLMResponseGenerator:
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise RuntimeError("Gemini API key must be configured for response generation")
+    return LLMResponseGenerator(settings.gemini_response_model, settings.gemini_api_key)
+
+
 def get_lead_service(
     settings: Settings = Depends(get_settings),
     mongo_factory: MongoClientFactory = Depends(get_mongo_factory),
@@ -71,8 +80,13 @@ def get_lead_service(
 def get_rag_service(
     pinecone_factory: PineconeClientFactory = Depends(get_pinecone_factory),
     embedder = Depends(get_embedder),
+    response_generator: LLMResponseGenerator = Depends(get_response_generator),
 ) -> RagService:
-    return RagService(pinecone_index=pinecone_factory.get_index(), embedder=embedder)
+    return RagService(
+        pinecone_index=pinecone_factory.get_index(),
+        embedder=embedder,
+        response_generator=response_generator,
+    )
 
 
 def get_ingestion_pipeline(

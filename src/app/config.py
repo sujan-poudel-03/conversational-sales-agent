@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         default="gemini-flash-latest",
         validation_alias=AliasChoices("GEMINI_INTENT_MODEL", "GEMINI_CLASSIFIER_MODEL"),
     )
+    gemini_response_model: str = Field(
+        default="gemini-flash-latest",
+        validation_alias=AliasChoices("GEMINI_RESPONSE_MODEL", "GEMINI_CHAT_MODEL"),
+    )
     allowed_origins: List[str] = Field(
         default_factory=list,
         validation_alias="ALLOWED_ORIGINS",
