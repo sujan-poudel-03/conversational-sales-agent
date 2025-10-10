@@ -42,6 +42,11 @@ class IngestionPipeline:
 
         for document in documents:
             try:
+                logger.info(
+                    "Chunking documents using word-based segments (chunk_size=%d words, overlap=%d words)",
+                    self._chunk_size,
+                    self._chunk_overlap,
+                )
                 resolved_chunks = list(self._prepare_chunks(document))
                 if not resolved_chunks:
                     logger.warning("No content extracted from document", extra={"document": document})
