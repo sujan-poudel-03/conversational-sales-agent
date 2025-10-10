@@ -54,7 +54,7 @@ class StubLeadService(LeadService):
         return LeadCaptureResult(updates={"user_query": user_query}, prompt="Captured.", completed=False)
 
     def is_complete(self, lead_data):
-        required = {"name", "email", "product_interest", "interest_reason"}
+        required = {"name", "email", "product_interest"}
         return required.issubset({k for k, v in lead_data.items() if v})
 
 

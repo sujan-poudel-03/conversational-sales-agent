@@ -53,3 +53,26 @@ def test_lead_capture_conversation_and_persistence():
     assert record["id"] == "lead-001"
     assert service._collection.inserted  # type: ignore[attr-defined]
     assert service._email_client.sent  # type: ignore[attr-defined]
+
+
+def test_lead_capture_short_reply_sets_product_interest():
+    service = LeadService(collection=MemoryCollection(), email_client=MemoryEmailClient())
+    context = {"org_id": "org-beta", "branch_id": "branch-east"}
+    lead_state = {}
+
+    initial = "Book a consultation tomorrow at 3pm for Mr. Sujan on sujan@example.com"
+    first = service.capture_lead_step(context, initial, lead_state)
+    lead_state.update(first.updates)
+
+    assert lead_state["email"] == "sujan@example.com"
+    assert lead_state["name"] == "Sujan"
+    assert "product_interest" not in lead_state
+    assert first.prompt == service.PROMPTS["product_interest"]
+
+    follow_up = "software development"
+    second = service.capture_lead_step(context, follow_up, lead_state)
+    lead_state.update(second.updates)
+
+    assert lead_state["product_interest"] == ["software development"]
+    assert service.is_complete(lead_state) is True
+    assert second.prompt is None

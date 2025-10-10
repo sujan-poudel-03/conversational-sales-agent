@@ -17,8 +17,8 @@ class LeadCaptureResult:
 class LeadService:
     """Captures lead information and persists it to MongoDB."""
 
-    REQUIRED_FIELDS = ["product_interest", "interest_reason", "name", "email"]
-    OPTIONAL_FIELDS = ["budget_expectation", "phone"]
+    REQUIRED_FIELDS = ["product_interest", "name", "email"]
+    OPTIONAL_FIELDS = ["interest_reason", "budget_expectation", "phone"]
     PROMPTS = {
         "product_interest": "I can help with that. Which products are you most interested in?",
         "interest_reason": "Thanks! What makes this a good fit for you right now?",
@@ -39,11 +39,13 @@ class LeadService:
         re.compile(r"since ([^.?!]+)", re.IGNORECASE),
         re.compile(r"so that ([^.?!]+)", re.IGNORECASE),
         re.compile(r"as ([^.?!]+)", re.IGNORECASE),
+        re.compile(r"to ([^.?!]+)", re.IGNORECASE),
     ]
     NAME_PATTERNS = [
         re.compile(r"my name is\s+([A-Za-z][A-Za-z'\-]*(?:\s+[A-Za-z][A-Za-z'\-]*)*)", re.IGNORECASE),
         re.compile(r"I'm\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"),
         re.compile(r"I am\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"),
+        re.compile(r"(?:Mr|Mrs|Ms|Dr)\.?\s+([A-Za-z][A-Za-z'\-]*(?:\s+[A-Za-z][A-Za-z'\-]*)*)", re.IGNORECASE),
     ]
 
     def __init__(self, collection, email_client: EmailClient) -> None:
@@ -95,7 +97,13 @@ class LeadService:
         set_field("product_interest", product_match)
 
         reason_match = self._extract_by_patterns(text, self.REASON_PATTERNS)
+        if not reason_match:
+            reason_match = self._infer_reason_from_intent(text)
         set_field("interest_reason", reason_match)
+
+        if not lead_data.get("product_interest"):
+            fallback_product = self._infer_product_from_short_reply(text)
+            set_field("product_interest", fallback_product)
 
         budget_match = re.search(r"(?:budget|around|about|roughly)\s*(?:is|:)?\s*(\$?\d[\d,]*(?:\.\d{1,2})?)", text, re.IGNORECASE)
         set_field("budget_expectation", budget_match.group(1) if budget_match else None)
@@ -104,9 +112,7 @@ class LeadService:
         lead_data.setdefault("branch_id", context.get("branch_id"))
 
         missing_required = [field for field in self.REQUIRED_FIELDS if not lead_data.get(field)]
-        missing_optional = [field for field in self.OPTIONAL_FIELDS if not lead_data.get(field)]
-
-        next_field = (missing_required + missing_optional)[0] if (missing_required or missing_optional) else None
+        next_field = missing_required[0] if missing_required else None
         prompt = self.PROMPTS.get(next_field) if next_field else None
 
         completed = not missing_required
@@ -126,6 +132,51 @@ class LeadService:
             if marker != -1:
                 return text[:marker].strip()
         return text.strip()
+
+    def _infer_product_from_short_reply(self, text: str) -> Optional[str]:
+        normalized = text.strip()
+        if not normalized:
+            return None
+        lower = normalized.lower()
+        if lower in {
+            "yes",
+            "yeah",
+            "yep",
+            "no",
+            "nope",
+            "ok",
+            "okay",
+            "sure",
+            "maybe",
+            "not sure",
+            "thanks",
+            "thank you",
+        }:
+            return None
+        if "?" in normalized or "@" in normalized or normalized.replace(".", "").isdigit():
+            return None
+        words = normalized.split()
+        if len(words) > 12:
+            return None
+        prefixes = ["i am ", "i'm ", "we are ", "we're ", "we need ", "i need ", "i want "]
+        for prefix in prefixes:
+            if lower.startswith(prefix):
+                normalized = normalized[len(prefix):].strip()
+                lower = normalized.lower()
+                break
+        normalized = normalized.rstrip(".!")
+        if not normalized:
+            return None
+        return normalized
+
+    def _infer_reason_from_intent(self, text: str) -> Optional[str]:
+        lowered = text.lower()
+        tokens = [" to ", " so we can ", " so i can "]
+        for token in tokens:
+            idx = lowered.find(token)
+            if idx != -1:
+                return text[idx + len(token):].strip()
+        return None
 
     def is_complete(self, lead_data: Dict[str, Optional[str]]) -> bool:
         for field in self.REQUIRED_FIELDS:
