@@ -61,6 +61,7 @@ class IngestionPipeline:
                         "source_path": chunk.get("source_path"),
                         "text": text,
                     }
+                    metadata = {key: value for key, value in metadata.items() if value is not None}
                     values = self._embedder.embed(text)
                     vectors_modern.append(
                         {
